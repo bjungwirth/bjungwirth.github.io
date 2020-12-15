@@ -12,6 +12,14 @@ THEME = r'c:\users\cloud\~\pelican-themes\flex'
 
 PLUGIN_PATHS = [r'c:\users\cloud\~\pelican-plugins']
 
+STATIC_PATHS = [
+    'CNAME', 'siteImages'
+]
+
+EXTRA_PATH_METADATA = {
+    'CNAME': {'path': 'CNAME'},
+}
+
 MAIN_MENU = True
 
 PATH = 'content'
@@ -45,9 +53,6 @@ MENUITEMS = (
     ("Archives", "/archives.html"),
     ("Categories", "/categories.html")
 )
-
-STATIC_PATHS  = ['siteImages']
-
 
 #PLUGINS = [
 #    'pelican_youtube',
