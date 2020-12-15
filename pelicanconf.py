@@ -10,10 +10,13 @@ SITELOGO = 'siteImages/gandalf.png'
 
 THEME = r'c:\users\cloud\~\pelican-themes\flex'
 
+
+PATH = 'content'
+
 PLUGIN_PATHS = [r'c:\users\cloud\~\pelican-plugins']
 
 STATIC_PATHS = [
-    'CNAME', 'siteImages'
+    'CNAME', 'siteImages', 'images'
 ]
 
 EXTRA_PATH_METADATA = {
@@ -22,7 +25,6 @@ EXTRA_PATH_METADATA = {
 
 MAIN_MENU = True
 
-PATH = 'content'
 
 TIMEZONE = 'America/Chicago'
 

@@ -47,7 +47,7 @@
 &lt;span class="n"&gt;plt&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;show&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 
-&lt;p&gt;&lt;img src="images/ownership/heatmap.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="./images/ownership/heatmap.png"&gt;&lt;/p&gt;
 &lt;p&gt;The heatmap above shows that there's definitely some relationship between the plays -- Josh Allen as a Flex play is least owned when the Steelers Defense was picked as a Captain for example. Using the chi-square test we can confirm this hypothesis:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="n"&gt;stat&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;dof&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;expected&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;ss&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;chi2_contingency&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;m&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
 &lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;dof=&lt;/span&gt;&lt;span class="si"&gt;%d&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt; &lt;span class="o"&gt;%&lt;/span&gt; &lt;span class="n"&gt;dof&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
@@ -109,9 +109,9 @@
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 
 &lt;p&gt;In this case, the Cramer's V value is so low (similar to the typical Pearson's correlation coefficient, Cramer's V has a value range of 0 to 1) that although we acknowledge that there is &lt;em&gt;some&lt;/em&gt; relationship in the data between between choosing Captains and Flex plays, it's low enough that we can assume that we can mostly calculate a lineup's independence using the Probability Rule. Consider the below lineups with almost the exact same cumulative ownership (thank you FC!): &lt;/p&gt;
-&lt;p&gt;&lt;img src="images/ownership/lus.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="./images/ownership/lus.png"&gt;&lt;/p&gt;
 &lt;p&gt;Now instead of looking at the cumulative ownership, let's look at the ownership product for each lineup:&lt;/p&gt;
-&lt;p&gt;&lt;img src="images/ownership/prod.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="./images/ownership/prod.png"&gt;&lt;/p&gt;
 &lt;p&gt;The raw differences in the ownership product seem pretty minute, but converting them back to a fraction gives a better idea of the magnitude of differences between the probabilities of each lineup being duplicated. Another way to read that last column is for the first lineup you'd expect a duplicate for every 2311 lineups. &lt;/p&gt;
 &lt;p&gt;Another thing to note is that despite having the same ownership product, the Benny Snell lineup is unique and the Boswell lineup isn't, which is probably due to the difference in total salaries (the Snell lineup used $46,300 in salary). This is yet another way to get unique -- if you're considering two lineups with the same projection, same ownership product, and different salaries, you should always take the lineup with the lowest salary. &lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;Key takeaways:&lt;/strong&gt;&lt;/p&gt;

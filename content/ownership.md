@@ -61,7 +61,7 @@ sns.heatmap(m_div, cmap='rocket_r',fmt='g')
 plt.show()
 ```
 
-<img src="images/ownership/heatmap.png">
+<img src="./images/ownership/heatmap.png">
 
 
 The heatmap above shows that there's definitely some relationship between the plays -- Josh Allen as a Flex play is least owned when the Steelers Defense was picked as a Captain for example. Using the chi-square test we can confirm this hypothesis:
@@ -136,11 +136,11 @@ cramers_v(cpts['CPT'], cpts['FLEX'])
 
 In this case, the Cramer's V value is so low (similar to the typical Pearson's correlation coefficient, Cramer's V has a value range of 0 to 1) that although we acknowledge that there is *some* relationship in the data between between choosing Captains and Flex plays, it's low enough that we can assume that we can mostly calculate a lineup's independence using the Probability Rule. Consider the below lineups with almost the exact same cumulative ownership (thank you FC!): 
 
-<img src="images/ownership/lus.png">
+<img src="./images/ownership/lus.png">
 
 Now instead of looking at the cumulative ownership, let's look at the ownership product for each lineup:
 
-<img src="images/ownership/prod.png">
+<img src="./images/ownership/prod.png">
 
 The raw differences in the ownership product seem pretty minute, but converting them back to a fraction gives a better idea of the magnitude of differences between the probabilities of each lineup being duplicated. Another way to read that last column is for the first lineup you'd expect a duplicate for every 2311 lineups. 
 
