@@ -3,10 +3,16 @@
 
 AUTHOR = 'Blaine'
 SITENAME = "Quip Trippin"
-SITEURL = ''
+SITEURL = 'http://jungwirb.io'
 SITETITLE = "Quip Trippin' with Blaine"
 SITESUBTITLE = "Musings on Data Science, DFS, Tennis, Traveling, Pop Culture"
 SITELOGO = 'siteImages/gandalf.png'
+
+THEME = r'c:\users\cloud\~\pelican-themes\flex'
+
+PLUGIN_PATHS = [r'c:\users\cloud\~\pelican-plugins']
+
+MAIN_MENU = True
 
 PATH = 'content'
 
@@ -22,35 +28,14 @@ AUTHOR_FEED_ATOM = None
 AUTHOR_FEED_RSS = None
 
 # Blogroll
-LINKS = (('Twitter', 'twitter.com/blainejungwirth'),)
-
-# Social widget
-SOCIAL = (('twitter', 'twitter.com/blainejungwirth'),
-          ('Another social link', '#'),)
+#LINKS = (("twitter", "https://twitter.com/blainejungwirth/"),)
 
 DEFAULT_PAGINATION = False
 
 # Uncomment following line if you want document-relative URLs when developing
 #RELATIVE_URLS = True
 
-THEME = r'c:\users\cloud\~\pelican-themes\flex'
-
-PLUGIN_PATHS = [r'c:\users\cloud\~\pelican-plugins']
-
-PLUGINS = [
-    'pelican_youtube',
-    'assets'
-]
-
-
-#MENUITEMS = (('Contact', '/contact/'), ('DFS', '/dfs/'),
-#             ('Data Science', '/data-science/'),
-#		('Quip Tripping', '/quip-tripping/'),
-#		('Potpourri', '/potpourri/')
- #            )
-
 BROWSER_COLOR = "#333"
-MAIN_MENU = True
 
 FEED_ALL_ATOM = "feeds/all.atom.xml"
 CATEGORY_FEED_ATOM = "feeds/{slug}.atom.xml"
@@ -58,7 +43,18 @@ PYGMENTS_STYLE = "monokai"
 
 MENUITEMS = (
     ("Archives", "/archives.html"),
-    ("Categories", "/categories.html"),
+    ("Categories", "/categories.html")
 )
 
 STATIC_PATHS  = ['siteImages']
+
+
+#PLUGINS = [
+#    'pelican_youtube',
+#    'assets'
+#]
+
+# Social widget
+SOCIAL = (
+    ("twitter", "https://twitter.com/blainejungwirth/"),
+)

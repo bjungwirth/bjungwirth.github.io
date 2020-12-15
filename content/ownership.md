@@ -28,9 +28,6 @@ import os
 import scipy.stats as ss
 import numpy as np
 
-
-os.chdir('C:\\users\\cloud\\documents\\nfl')   
-
 sd = pd.read_csv('dk sd.csv')
 sd.columns = sd.columns.str.lower()
 own = pd.read_csv('sd ownership.csv')
