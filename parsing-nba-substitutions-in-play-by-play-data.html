@@ -1786,7 +1786,7 @@
 <span class="err">            game.ateam.lu.pts += row[&#39;scoremargin&#39;]</span>
 </code></pre></div>
 
-<p>Finally, we get to the real meat and potatoes: parsing the actual substitutions. </p>
+<p>Finally, parsing the actual substitutions. </p>
 <div class="highlight"><pre><span></span><code>    <span class="k">if</span> <span class="k">row</span><span class="p">[</span><span class="s1">&#39;eventmsgtype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">8</span><span class="p">:</span>
         <span class="k">if</span> <span class="k">row</span><span class="p">[</span><span class="s1">&#39;player1_team_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">game</span><span class="p">.</span><span class="n">hteam</span><span class="p">.</span><span class="n">teamid</span><span class="p">:</span>
             <span class="n">game</span><span class="p">.</span><span class="n">hteam</span><span class="p">.</span><span class="n">Sub</span><span class="p">(</span><span class="n">sub_in</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;player2_id&#39;</span><span class="p">],</span> <span class="n">sub_out</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;player1_id&#39;</span><span class="p">],</span> <span class="n">event</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;eventnum&#39;</span><span class="p">],</span> <span class="k">time</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;time_remaining&#39;</span><span class="p">])</span>
