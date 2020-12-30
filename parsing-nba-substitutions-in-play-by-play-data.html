@@ -1,0 +1,1895 @@
+
+<!DOCTYPE html>
+<html lang="english">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,700;1,400&family=Source+Sans+Pro:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/stylesheet/style.min.css">
+
+
+    <link id="pygments-light-theme" rel="stylesheet" type="text/css"
+          href="http://jungwirb.io/theme/pygments/monokai.min.css">
+
+
+  <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/fontawesome.css">
+  <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/brands.css">
+  <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/solid.css">
+
+
+    <link href="http://jungwirb.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Quip Trippin Atom">
+
+
+
+
+    <!-- Chrome, Firefox OS and Opera -->
+    <meta name="theme-color" content="#333">
+    <!-- Windows Phone -->
+    <meta name="msapplication-navbutton-color" content="#333">
+    <!-- iOS Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Microsoft EDGE -->
+    <meta name="msapplication-TileColor" content="#333">
+
+<meta name="author" content="Blaine" />
+<meta name="description" content="Parsing substitutions in basketball play-by-play data is a problem that has eluded me for a while. It&#39;s massively important when considering lineup-contextual events or statistics like plus/minus or for parsing rotation data. The below is the approach I came up with to parse this data out and get an …" />
+<meta name="keywords" content="">
+
+
+<meta property="og:site_name" content="Quip Trippin"/>
+<meta property="og:title" content="Parsing NBA Substitutions in Play-by-Play Data"/>
+<meta property="og:description" content="Parsing substitutions in basketball play-by-play data is a problem that has eluded me for a while. It&#39;s massively important when considering lineup-contextual events or statistics like plus/minus or for parsing rotation data. The below is the approach I came up with to parse this data out and get an …"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:url" content="http://jungwirb.io/parsing-nba-substitutions-in-play-by-play-data.html"/>
+<meta property="og:type" content="article"/>
+<meta property="article:published_time" content="2020-12-29 00:00:00-06:00"/>
+<meta property="article:modified_time" content=""/>
+<meta property="article:author" content="http://jungwirb.io/author/blaine.html">
+<meta property="article:section" content="Data Science"/>
+<meta property="og:image" content="siteImages/gandalf.png">
+
+  <title>Quip Trippin &ndash; Parsing NBA Substitutions in Play-by-Play Data</title>
+
+</head>
+<body class="light-theme">
+  <aside>
+    <div>
+      <a href="http://jungwirb.io">
+        <img src="siteImages/gandalf.png" alt="Quip Trippin' with Blaine" title="Quip Trippin' with Blaine">
+      </a>
+
+      <h1>
+        <a href="http://jungwirb.io">Quip Trippin' with Blaine</a>
+      </h1>
+
+<p>Musings on Data Science, DFS, Tennis, Traveling, Pop Culture</p>
+
+      <nav>
+        <ul class="list">
+
+
+              <li>
+                <a target="_self"
+                   href="http://jungwirb.io/pages/about.html#about">
+                  About
+                </a>
+              </li>
+
+        </ul>
+      </nav>
+
+      <ul class="social">
+          <li>
+            <a  class="sc-twitter" href="https://twitter.com/blainejungwirth/" target="_blank">
+              <i class="fab fa-twitter"></i>
+            </a>
+          </li>
+      </ul>
+    </div>
+
+  </aside>
+  <main>
+
+    <nav>
+      <a href="http://jungwirb.io">Home</a>
+
+      <a href="/archives.html">Archives</a>
+      <a href="/categories.html">Categories</a>
+
+      <a href="http://jungwirb.io/feeds/all.atom.xml">Atom</a>
+
+    </nav>
+
+<article class="single">
+  <header>
+      
+    <h1 id="parsing-nba-substitutions-in-play-by-play-data">Parsing NBA Substitutions in Play-by-Play Data</h1>
+    <p>
+      Posted on Tue 29 December 2020 in <a href="http://jungwirb.io/category/data-science.html">Data Science</a>
+
+    </p>
+  </header>
+
+
+  <div>
+    <p>Parsing substitutions in basketball play-by-play data is a problem that has eluded me for a while. It's massively important when considering lineup-contextual events or statistics like plus/minus or for parsing rotation data. The below is the approach I came up with to parse this data out and get an idea of which lineups were on the court together and for how long. The best way I have figured to do it was using python classes to store lineup and player data and just change an on/off court value as they were subbed in and out. I am sure there are more elegant ways to handle this data, but I am not a computer scientist!</p>
+<p>First we need the box score to get the player rosters for the game we want to parse. In this example I'm going to use Blazers/Nuggets Game 7 from 2019, not that I'm biased at all in choosing one of the best wins for my Blazers in my lifetime.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">datetime</span> <span class="k">as</span> <span class="nn">dt</span>
+
+<span class="n">box_url</span> <span class="o">=</span> <span class="s1">&#39;https://stats.nba.com/stats/boxscoretraditionalv2?EndPeriod=10&amp;EndRange=28800&amp;GameID=0041800237&amp;RangeType=0&amp;Season=2018-19&amp;SeasonType=Playoffs&amp;StartPeriod=1&amp;StartRange=0&#39;</span>
+<span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;User-Agent&#39;</span><span class="p">:</span> <span class="s1">&#39;Mozilla/5.0 (Windows NT 10.0; WOW64)&#39;</span><span class="p">,</span> <span class="s1">&#39;x-nba-stats-origin&#39;</span><span class="p">:</span> <span class="s1">&#39;stats&#39;</span><span class="p">,</span> <span class="s1">&#39;x-nba-stats-token&#39;</span><span class="p">:</span> <span class="s1">&#39;true&#39;</span><span class="p">,</span> <span class="s1">&#39;Host&#39;</span><span class="p">:</span><span class="s1">&#39;stats.nba.com&#39;</span><span class="p">,</span> <span class="s1">&#39;Referer&#39;</span><span class="p">:</span><span class="s1">&#39;https://stats.nba.com/game/0021900306/&#39;</span><span class="p">}</span>
+<span class="n">r</span><span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">box_url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">timeout</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+<span class="n">box</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;resultSets&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;rowSet&#39;</span><span class="p">])</span>
+<span class="n">col_names</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;resultSets&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;headers&#39;</span><span class="p">]</span>
+<span class="n">box</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">col_names</span>
+<span class="n">box</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">box</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+<span class="n">box</span>
+</code></pre></div>
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>game_id</th>
+      <th>team_id</th>
+      <th>team_abbreviation</th>
+      <th>team_city</th>
+      <th>player_id</th>
+      <th>player_name</th>
+      <th>start_position</th>
+      <th>comment</th>
+      <th>min</th>
+      <th>fgm</th>
+      <th>fga</th>
+      <th>fg_pct</th>
+      <th>fg3m</th>
+      <th>fg3a</th>
+      <th>fg3_pct</th>
+      <th>ftm</th>
+      <th>fta</th>
+      <th>ft_pct</th>
+      <th>oreb</th>
+      <th>dreb</th>
+      <th>reb</th>
+      <th>ast</th>
+      <th>stl</th>
+      <th>blk</th>
+      <th>to</th>
+      <th>pf</th>
+      <th>pts</th>
+      <th>plus_minus</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>203090</td>
+      <td>Maurice Harkless</td>
+      <td>F</td>
+      <td></td>
+      <td>16:47</td>
+      <td>3.0</td>
+      <td>5.0</td>
+      <td>0.600</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.000</td>
+      <td>3.0</td>
+      <td>2.0</td>
+      <td>5.0</td>
+      <td>3.0</td>
+      <td>1.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>5.0</td>
+      <td>6.0</td>
+      <td>-8.0</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>202329</td>
+      <td>Al-Farouq Aminu</td>
+      <td>F</td>
+      <td></td>
+      <td>7:08</td>
+      <td>1.0</td>
+      <td>4.0</td>
+      <td>0.250</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>0.000</td>
+      <td>1.0</td>
+      <td>2.0</td>
+      <td>0.500</td>
+      <td>0.0</td>
+      <td>3.0</td>
+      <td>3.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>-7.0</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>202683</td>
+      <td>Enes Kanter</td>
+      <td>C</td>
+      <td></td>
+      <td>39:39</td>
+      <td>6.0</td>
+      <td>13.0</td>
+      <td>0.462</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.000</td>
+      <td>4.0</td>
+      <td>8.0</td>
+      <td>12.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>12.0</td>
+      <td>1.0</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>203468</td>
+      <td>CJ McCollum</td>
+      <td>G</td>
+      <td></td>
+      <td>45:17</td>
+      <td>17.0</td>
+      <td>29.0</td>
+      <td>0.586</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>0.333</td>
+      <td>2.0</td>
+      <td>2.0</td>
+      <td>1.000</td>
+      <td>1.0</td>
+      <td>8.0</td>
+      <td>9.0</td>
+      <td>1.0</td>
+      <td>1.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>37.0</td>
+      <td>6.0</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>203081</td>
+      <td>Damian Lillard</td>
+      <td>G</td>
+      <td></td>
+      <td>45:25</td>
+      <td>3.0</td>
+      <td>17.0</td>
+      <td>0.176</td>
+      <td>2.0</td>
+      <td>9.0</td>
+      <td>0.222</td>
+      <td>5.0</td>
+      <td>6.0</td>
+      <td>0.833</td>
+      <td>0.0</td>
+      <td>10.0</td>
+      <td>10.0</td>
+      <td>8.0</td>
+      <td>3.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>13.0</td>
+      <td>8.0</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>1628380</td>
+      <td>Zach Collins</td>
+      <td></td>
+      <td></td>
+      <td>23:17</td>
+      <td>2.0</td>
+      <td>6.0</td>
+      <td>0.333</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>0.333</td>
+      <td>2.0</td>
+      <td>2.0</td>
+      <td>1.000</td>
+      <td>2.0</td>
+      <td>4.0</td>
+      <td>6.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>4.0</td>
+      <td>1.0</td>
+      <td>5.0</td>
+      <td>7.0</td>
+      <td>5.0</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>203918</td>
+      <td>Rodney Hood</td>
+      <td></td>
+      <td></td>
+      <td>20:11</td>
+      <td>2.0</td>
+      <td>6.0</td>
+      <td>0.333</td>
+      <td>0.0</td>
+      <td>3.0</td>
+      <td>0.000</td>
+      <td>2.0</td>
+      <td>2.0</td>
+      <td>1.000</td>
+      <td>0.0</td>
+      <td>3.0</td>
+      <td>3.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>6.0</td>
+      <td>-2.0</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>203552</td>
+      <td>Seth Curry</td>
+      <td></td>
+      <td></td>
+      <td>16:20</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>5.0</td>
+      <td>0.0</td>
+      <td>7.0</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>202323</td>
+      <td>Evan Turner</td>
+      <td></td>
+      <td></td>
+      <td>19:12</td>
+      <td>3.0</td>
+      <td>7.0</td>
+      <td>0.429</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.000</td>
+      <td>8.0</td>
+      <td>9.0</td>
+      <td>0.889</td>
+      <td>2.0</td>
+      <td>5.0</td>
+      <td>7.0</td>
+      <td>2.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>4.0</td>
+      <td>14.0</td>
+      <td>1.0</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>203086</td>
+      <td>Meyers Leonard</td>
+      <td></td>
+      <td></td>
+      <td>6:44</td>
+      <td>1.0</td>
+      <td>4.0</td>
+      <td>0.250</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>3.0</td>
+      <td>2.0</td>
+      <td>9.0</td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>1627746</td>
+      <td>Skal Labissiere</td>
+      <td></td>
+      <td>DNP - Coach's Decision</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>1627774</td>
+      <td>Jake Layman</td>
+      <td></td>
+      <td>DNP - Coach's Decision</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>0041800237</td>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>Portland</td>
+      <td>1629014</td>
+      <td>Anfernee Simons</td>
+      <td></td>
+      <td>DNP - Coach's Decision</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>1628470</td>
+      <td>Torrey Craig</td>
+      <td>F</td>
+      <td></td>
+      <td>33:01</td>
+      <td>2.0</td>
+      <td>5.0</td>
+      <td>0.400</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>0.000</td>
+      <td>4.0</td>
+      <td>5.0</td>
+      <td>0.800</td>
+      <td>4.0</td>
+      <td>4.0</td>
+      <td>8.0</td>
+      <td>2.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>2.0</td>
+      <td>8.0</td>
+      <td>6.0</td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>200794</td>
+      <td>Paul Millsap</td>
+      <td>F</td>
+      <td></td>
+      <td>31:55</td>
+      <td>3.0</td>
+      <td>13.0</td>
+      <td>0.231</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>0.000</td>
+      <td>4.0</td>
+      <td>6.0</td>
+      <td>0.667</td>
+      <td>1.0</td>
+      <td>6.0</td>
+      <td>7.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>3.0</td>
+      <td>0.0</td>
+      <td>6.0</td>
+      <td>10.0</td>
+      <td>3.0</td>
+    </tr>
+    <tr>
+      <th>15</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>203999</td>
+      <td>Nikola Jokic</td>
+      <td>C</td>
+      <td></td>
+      <td>41:53</td>
+      <td>11.0</td>
+      <td>26.0</td>
+      <td>0.423</td>
+      <td>2.0</td>
+      <td>6.0</td>
+      <td>0.333</td>
+      <td>5.0</td>
+      <td>7.0</td>
+      <td>0.714</td>
+      <td>4.0</td>
+      <td>9.0</td>
+      <td>13.0</td>
+      <td>2.0</td>
+      <td>0.0</td>
+      <td>4.0</td>
+      <td>2.0</td>
+      <td>3.0</td>
+      <td>29.0</td>
+      <td>-1.0</td>
+    </tr>
+    <tr>
+      <th>16</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>203914</td>
+      <td>Gary Harris</td>
+      <td>G</td>
+      <td></td>
+      <td>39:10</td>
+      <td>7.0</td>
+      <td>11.0</td>
+      <td>0.636</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.000</td>
+      <td>1.0</td>
+      <td>2.0</td>
+      <td>0.500</td>
+      <td>0.0</td>
+      <td>6.0</td>
+      <td>6.0</td>
+      <td>3.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>15.0</td>
+      <td>-7.0</td>
+    </tr>
+    <tr>
+      <th>17</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>1627750</td>
+      <td>Jamal Murray</td>
+      <td>G</td>
+      <td></td>
+      <td>37:53</td>
+      <td>4.0</td>
+      <td>18.0</td>
+      <td>0.222</td>
+      <td>0.0</td>
+      <td>4.0</td>
+      <td>0.000</td>
+      <td>9.0</td>
+      <td>9.0</td>
+      <td>1.000</td>
+      <td>2.0</td>
+      <td>4.0</td>
+      <td>6.0</td>
+      <td>5.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>1.0</td>
+      <td>17.0</td>
+      <td>-2.0</td>
+    </tr>
+    <tr>
+      <th>18</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>203486</td>
+      <td>Mason Plumlee</td>
+      <td></td>
+      <td></td>
+      <td>18:48</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>0.333</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.000</td>
+      <td>2.0</td>
+      <td>5.0</td>
+      <td>0.400</td>
+      <td>1.0</td>
+      <td>5.0</td>
+      <td>6.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>0.0</td>
+      <td>3.0</td>
+      <td>4.0</td>
+      <td>-7.0</td>
+    </tr>
+    <tr>
+      <th>19</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>203115</td>
+      <td>Will Barton</td>
+      <td></td>
+      <td></td>
+      <td>19:58</td>
+      <td>4.0</td>
+      <td>9.0</td>
+      <td>0.444</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.000</td>
+      <td>1.0</td>
+      <td>2.0</td>
+      <td>3.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>3.0</td>
+      <td>8.0</td>
+      <td>-9.0</td>
+    </tr>
+    <tr>
+      <th>20</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>1627736</td>
+      <td>Malik Beasley</td>
+      <td></td>
+      <td></td>
+      <td>7:15</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.000</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>-1.0</td>
+    </tr>
+    <tr>
+      <th>21</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>1628420</td>
+      <td>Monte Morris</td>
+      <td></td>
+      <td></td>
+      <td>10:07</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>0.333</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>0.000</td>
+      <td>3.0</td>
+      <td>5.0</td>
+      <td>0.600</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>2.0</td>
+      <td>1.0</td>
+      <td>1.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>1.0</td>
+      <td>5.0</td>
+      <td>-2.0</td>
+    </tr>
+    <tr>
+      <th>22</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>1627823</td>
+      <td>Juancho Hernangomez</td>
+      <td></td>
+      <td>DNP - Coach's Decision</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>23</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>1626168</td>
+      <td>Trey Lyles</td>
+      <td></td>
+      <td>DNP - Coach's Decision</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>24</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>202738</td>
+      <td>Isaiah Thomas</td>
+      <td></td>
+      <td>DNP - Coach's Decision</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>25</th>
+      <td>0041800237</td>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>Denver</td>
+      <td>1629020</td>
+      <td>Jarred Vanderbilt</td>
+      <td></td>
+      <td>DNP - Coach's Decision</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>Filtering to get the starters</p>
+<div class="highlight"><pre><span></span><code><span class="n">starters</span> <span class="o">=</span> <span class="n">box</span><span class="p">[</span><span class="n">box</span><span class="p">[</span><span class="s1">&#39;start_position&#39;</span><span class="p">]</span><span class="o">!=</span> <span class="s1">&#39;&#39;</span><span class="p">]</span>
+<span class="n">starters</span> <span class="o">=</span> <span class="n">starters</span><span class="p">[[</span><span class="s1">&#39;team_id&#39;</span><span class="p">,</span><span class="s1">&#39;team_abbreviation&#39;</span><span class="p">,</span><span class="s1">&#39;player_id&#39;</span><span class="p">,</span><span class="s1">&#39;player_name&#39;</span><span class="p">,</span><span class="s1">&#39;start_position&#39;</span><span class="p">]]</span>
+<span class="n">starters</span>
+</code></pre></div>
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>team_id</th>
+      <th>team_abbreviation</th>
+      <th>player_id</th>
+      <th>player_name</th>
+      <th>start_position</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>203090</td>
+      <td>Maurice Harkless</td>
+      <td>F</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>202329</td>
+      <td>Al-Farouq Aminu</td>
+      <td>F</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>202683</td>
+      <td>Enes Kanter</td>
+      <td>C</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>203468</td>
+      <td>CJ McCollum</td>
+      <td>G</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>1610612757</td>
+      <td>POR</td>
+      <td>203081</td>
+      <td>Damian Lillard</td>
+      <td>G</td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>1628470</td>
+      <td>Torrey Craig</td>
+      <td>F</td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>200794</td>
+      <td>Paul Millsap</td>
+      <td>F</td>
+    </tr>
+    <tr>
+      <th>15</th>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>203999</td>
+      <td>Nikola Jokic</td>
+      <td>C</td>
+    </tr>
+    <tr>
+      <th>16</th>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>203914</td>
+      <td>Gary Harris</td>
+      <td>G</td>
+    </tr>
+    <tr>
+      <th>17</th>
+      <td>1610612743</td>
+      <td>DEN</td>
+      <td>1627750</td>
+      <td>Jamal Murray</td>
+      <td>G</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>Now pulling play by play data and some helper stuff to convert time strings to integers:</p>
+<div class="highlight"><pre><span></span><code><span class="n">pbp_url</span> <span class="o">=</span> <span class="s1">&#39;https://stats.nba.com/stats/playbyplayv2?EndPeriod=10&amp;EndRange=55800&amp;GameID=0041800237&amp;RangeType=2&amp;Season=2018-19&amp;SeasonType=Playoffs&amp;StartPeriod=1&amp;StartRange=0&#39;</span>
+<span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;User-Agent&#39;</span><span class="p">:</span> <span class="s1">&#39;Mozilla/5.0 (Windows NT 10.0; WOW64)&#39;</span><span class="p">,</span> <span class="s1">&#39;x-nba-stats-origin&#39;</span><span class="p">:</span> <span class="s1">&#39;stats&#39;</span><span class="p">,</span> <span class="s1">&#39;x-nba-stats-token&#39;</span><span class="p">:</span> <span class="s1">&#39;true&#39;</span><span class="p">,</span> <span class="s1">&#39;Host&#39;</span><span class="p">:</span><span class="s1">&#39;stats.nba.com&#39;</span><span class="p">,</span> <span class="s1">&#39;Referer&#39;</span><span class="p">:</span><span class="s1">&#39;https://stats.nba.com/game/0021900306/&#39;</span><span class="p">}</span>
+<span class="n">r</span><span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pbp_url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">timeout</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+<span class="n">pbp</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;resultSets&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;rowSet&#39;</span><span class="p">])</span>
+<span class="n">col_names</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;resultSets&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;headers&#39;</span><span class="p">]</span>
+<span class="n">pbp</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">col_names</span>
+<span class="n">pbp</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">pbp</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+<span class="n">pbp_times</span> <span class="o">=</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;pctimestring&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">pbp_times</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">pbp_times</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">pbp_times</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">pbp_times</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;timeinseconds&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">pbp_times</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="mi">60</span><span class="p">)</span> <span class="o">+</span> <span class="n">pbp_times</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;timeinseconds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="o">-</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;timeinseconds&#39;</span><span class="p">]</span> 
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">])</span>
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;total_elapsed_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pbp</span><span class="o">.</span><span class="n">groupby</span><span class="p">([</span><span class="s1">&#39;game_id&#39;</span><span class="p">])[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">cumsum</span><span class="p">()</span>
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;max_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pbp</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;game_id&#39;</span><span class="p">)[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="s1">&#39;sum&#39;</span><span class="p">)</span>
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;time_remaining&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;max_time&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;total_elapsed_time&#39;</span><span class="p">]</span>
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span><span class="o">==</span><span class="s1">&#39;TIE&#39;</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">])</span>
+<span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pbp</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">pbp</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</code></pre></div>
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>game_id</th>
+      <th>eventnum</th>
+      <th>eventmsgtype</th>
+      <th>eventmsgactiontype</th>
+      <th>period</th>
+      <th>wctimestring</th>
+      <th>pctimestring</th>
+      <th>homedescription</th>
+      <th>neutraldescription</th>
+      <th>visitordescription</th>
+      <th>score</th>
+      <th>scoremargin</th>
+      <th>person1type</th>
+      <th>player1_id</th>
+      <th>player1_name</th>
+      <th>player1_team_id</th>
+      <th>player1_team_city</th>
+      <th>player1_team_nickname</th>
+      <th>player1_team_abbreviation</th>
+      <th>person2type</th>
+      <th>player2_id</th>
+      <th>player2_name</th>
+      <th>player2_team_id</th>
+      <th>player2_team_city</th>
+      <th>player2_team_nickname</th>
+      <th>player2_team_abbreviation</th>
+      <th>person3type</th>
+      <th>player3_id</th>
+      <th>player3_name</th>
+      <th>player3_team_id</th>
+      <th>player3_team_city</th>
+      <th>player3_team_nickname</th>
+      <th>player3_team_abbreviation</th>
+      <th>video_available_flag</th>
+      <th>timeinseconds</th>
+      <th>play_elapsed_time</th>
+      <th>total_elapsed_time</th>
+      <th>max_time</th>
+      <th>time_remaining</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>0041800237</td>
+      <td>2</td>
+      <td>12</td>
+      <td>0</td>
+      <td>1</td>
+      <td>3:41 PM</td>
+      <td>12:00</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>0</td>
+      <td>0</td>
+      <td>0</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>0</td>
+      <td>0</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>0</td>
+      <td>0</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>0</td>
+      <td>720</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>2880.0</td>
+      <td>2880.0</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>0041800237</td>
+      <td>4</td>
+      <td>10</td>
+      <td>0</td>
+      <td>1</td>
+      <td>3:41 PM</td>
+      <td>12:00</td>
+      <td>Jump Ball Millsap vs. Kanter: Tip to Harkless</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>0</td>
+      <td>4</td>
+      <td>200794</td>
+      <td>Paul Millsap</td>
+      <td>1.610613e+09</td>
+      <td>Denver</td>
+      <td>Nuggets</td>
+      <td>DEN</td>
+      <td>5</td>
+      <td>202683</td>
+      <td>Enes Kanter</td>
+      <td>1.610613e+09</td>
+      <td>Portland</td>
+      <td>Trail Blazers</td>
+      <td>POR</td>
+      <td>5</td>
+      <td>203090</td>
+      <td>Maurice Harkless</td>
+      <td>1.610613e+09</td>
+      <td>Portland</td>
+      <td>Trail Blazers</td>
+      <td>POR</td>
+      <td>1</td>
+      <td>720</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>2880.0</td>
+      <td>2880.0</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>0041800237</td>
+      <td>7</td>
+      <td>6</td>
+      <td>26</td>
+      <td>1</td>
+      <td>3:41 PM</td>
+      <td>11:45</td>
+      <td>None</td>
+      <td>None</td>
+      <td>Aminu Offensive Charge Foul (P1.T1) (J.Goble)</td>
+      <td>None</td>
+      <td>0</td>
+      <td>5</td>
+      <td>202329</td>
+      <td>Al-Farouq Aminu</td>
+      <td>1.610613e+09</td>
+      <td>Portland</td>
+      <td>Trail Blazers</td>
+      <td>POR</td>
+      <td>4</td>
+      <td>200794</td>
+      <td>Paul Millsap</td>
+      <td>1.610613e+09</td>
+      <td>Denver</td>
+      <td>Nuggets</td>
+      <td>DEN</td>
+      <td>1</td>
+      <td>0</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>1</td>
+      <td>705</td>
+      <td>15.0</td>
+      <td>15.0</td>
+      <td>2880.0</td>
+      <td>2865.0</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>0041800237</td>
+      <td>9</td>
+      <td>5</td>
+      <td>37</td>
+      <td>1</td>
+      <td>3:41 PM</td>
+      <td>11:45</td>
+      <td>None</td>
+      <td>None</td>
+      <td>Aminu Offensive Foul Turnover (P1.T1)</td>
+      <td>None</td>
+      <td>0</td>
+      <td>5</td>
+      <td>202329</td>
+      <td>Al-Farouq Aminu</td>
+      <td>1.610613e+09</td>
+      <td>Portland</td>
+      <td>Trail Blazers</td>
+      <td>POR</td>
+      <td>0</td>
+      <td>0</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>1</td>
+      <td>0</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>1</td>
+      <td>705</td>
+      <td>0.0</td>
+      <td>15.0</td>
+      <td>2880.0</td>
+      <td>2865.0</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>0041800237</td>
+      <td>10</td>
+      <td>1</td>
+      <td>6</td>
+      <td>1</td>
+      <td>3:42 PM</td>
+      <td>11:28</td>
+      <td>Harris 2' Driving Layup (2 PTS)</td>
+      <td>None</td>
+      <td>None</td>
+      <td>0 - 2</td>
+      <td>2</td>
+      <td>4</td>
+      <td>203914</td>
+      <td>Gary Harris</td>
+      <td>1.610613e+09</td>
+      <td>Denver</td>
+      <td>Nuggets</td>
+      <td>DEN</td>
+      <td>0</td>
+      <td>0</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>0</td>
+      <td>0</td>
+      <td>None</td>
+      <td>NaN</td>
+      <td>None</td>
+      <td>None</td>
+      <td>None</td>
+      <td>1</td>
+      <td>688</td>
+      <td>17.0</td>
+      <td>32.0</td>
+      <td>2880.0</td>
+      <td>2848.0</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>Now to set up the classes in order to keep track of who is on and off the court. I'm creating a class object for each player, team and lineup (called LineupStats) and then a Game class that parses through the play by play. Creating the team class also runs helper functions to pull the rosters and starters from the box score we pulled earlier:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span> <span class="nc">Player</span><span class="p">():</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">playerid</span><span class="p">,</span> <span class="n">teamid</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">playerid</span> <span class="o">=</span> <span class="n">playerid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span> <span class="o">=</span> <span class="n">teamid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">oncourt</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">court_time</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;court_time&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">court_time</span><span class="p">,</span>
+            <span class="s1">&#39;playerid&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">playerid</span><span class="p">,</span> 
+            <span class="s1">&#39;teamid&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span>
+        <span class="p">}</span>
+
+<span class="k">class</span> <span class="nc">Team</span><span class="p">():</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">teamid</span><span class="p">,</span> <span class="n">gameid</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">court_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">roster</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span> <span class="o">=</span> <span class="n">teamid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gameid</span> <span class="o">=</span> <span class="n">gameid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">starters</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lineups</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">getRoster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">box</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span><span class="n">row</span> <span class="ow">in</span> <span class="n">box</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;team_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">Player</span><span class="p">(</span><span class="n">playerid</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;player_id&#39;</span><span class="p">],</span><span class="n">teamid</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;team_id&#39;</span><span class="p">],</span> <span class="n">name</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;player_name&#39;</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">roster</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">getStarters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">box</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span><span class="n">row</span> <span class="ow">in</span> <span class="n">box</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;team_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span> <span class="ow">and</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;start_position&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">roster</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">playerid</span> <span class="o">==</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;player_id&#39;</span><span class="p">]:</span>    
+                        <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">starters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+                        <span class="n">p</span><span class="o">.</span><span class="n">oncourt</span> <span class="o">=</span> <span class="mi">1</span>  
+
+    <span class="k">def</span> <span class="nf">initLineup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lu</span> <span class="o">=</span> <span class="n">LineupStats</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gameid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">Sub</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sub_in</span><span class="p">,</span> <span class="n">sub_out</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resetLineup</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">time</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">playerid</span> <span class="o">==</span> <span class="n">sub_out</span><span class="p">:</span>
+                <span class="n">x</span><span class="o">.</span><span class="n">oncourt</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">roster</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">playerid</span> <span class="o">==</span> <span class="n">sub_in</span><span class="p">:</span>
+                <span class="n">x</span><span class="o">.</span><span class="n">oncourt</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  
+
+    <span class="k">def</span> <span class="nf">quarterSubs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lineup</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="p">[:]:</span>
+            <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">playerid</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">lineup</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                <span class="n">x</span><span class="o">.</span><span class="n">oncourt</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">lineup</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">roster</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">playerid</span> <span class="o">==</span> <span class="n">l</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">oncourt</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                    <span class="n">x</span><span class="o">.</span><span class="n">oncourt</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">resetLineup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lineups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="n">time</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">pts</span> <span class="o">=</span> <span class="mi">0</span>        
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">drbd</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">orbd</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">stl</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">blk</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">ast</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">fgm</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">fga</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">ftm</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">fta</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">pf</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">tov</span> <span class="o">=</span> <span class="mi">0</span>   
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">lu_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">fg3a</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">fg3m</span> <span class="o">=</span> <span class="mi">0</span>  
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">poss</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">event_start</span> <span class="o">=</span> <span class="n">event</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">time_on</span> <span class="o">=</span> <span class="n">time</span>
+
+    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;teamid&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span><span class="p">,</span>
+            <span class="s1">&#39;gameid&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gameid</span><span class="p">,</span>
+            <span class="s1">&#39;court_time&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">court_time</span><span class="p">,</span>
+            <span class="s1">&#39;starters&#39;</span> <span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">playerid</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">starters</span><span class="p">]</span>
+        <span class="p">}</span>
+
+
+<span class="k">class</span> <span class="nc">LineupStats</span><span class="p">():</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lineup</span><span class="p">,</span> <span class="n">gameid</span><span class="p">,</span><span class="n">teamid</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span> <span class="o">=</span> <span class="n">lineup</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pts</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">drbd</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">orbd</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stl</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">blk</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ast</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fgm</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fga</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ftm</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fta</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pf</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tov</span> <span class="o">=</span> <span class="mi">0</span>   
+        <span class="bp">self</span><span class="o">.</span><span class="n">lu_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">diff</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fg3a</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fg3m</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_start</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_on</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_off</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_end</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gameid</span> <span class="o">=</span> <span class="n">gameid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span> <span class="o">=</span> <span class="n">teamid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">poss</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time_end</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;lineup&#39;</span> <span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">playerid</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lineup</span><span class="p">],</span>
+            <span class="s1">&#39;pts&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">pts</span><span class="p">,</span>
+            <span class="s1">&#39;drbd&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">drbd</span><span class="p">,</span>
+            <span class="s1">&#39;stl&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">stl</span><span class="p">,</span>
+            <span class="s1">&#39;blk&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">blk</span><span class="p">,</span>
+            <span class="s1">&#39;ast&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ast</span><span class="p">,</span>
+            <span class="s1">&#39;fgm&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">fgm</span><span class="p">,</span>
+            <span class="s1">&#39;fga&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">fga</span><span class="p">,</span>
+            <span class="s1">&#39;ftm&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ftm</span><span class="p">,</span>
+            <span class="s1">&#39;fta&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">fta</span><span class="p">,</span>
+            <span class="s1">&#39;orbd&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">orbd</span><span class="p">,</span>
+            <span class="s1">&#39;pf&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">pf</span><span class="p">,</span>
+            <span class="s1">&#39;tov&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tov</span><span class="p">,</span>
+            <span class="s1">&#39;fg3a&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">fg3a</span><span class="p">,</span>
+            <span class="s1">&#39;fg3m&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">fg3m</span><span class="p">,</span>
+            <span class="s1">&#39;lu_time&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">lu_time</span><span class="p">,</span>
+            <span class="s1">&#39;diff&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span> <span class="p">,</span>
+            <span class="s1">&#39;event_start&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_start</span><span class="p">,</span>
+            <span class="s1">&#39;time_on&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_on</span><span class="p">,</span>
+            <span class="s1">&#39;time_off&#39;</span> <span class="p">:</span> <span class="n">time_end</span><span class="p">,</span>
+            <span class="s1">&#39;gameid&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gameid</span><span class="p">,</span>
+            <span class="s1">&#39;teamid&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">teamid</span><span class="p">,</span>
+            <span class="s1">&#39;poss&#39;</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">poss</span>
+        <span class="p">}</span>      
+
+
+<span class="k">class</span> <span class="nc">Game</span><span class="p">():</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hteam</span><span class="p">,</span> <span class="n">ateam</span><span class="p">,</span>  <span class="n">gameid</span><span class="p">,</span> <span class="n">pbp</span><span class="p">,</span> <span class="n">box</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span> <span class="o">=</span> <span class="n">hteam</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span> <span class="o">=</span> <span class="n">ateam</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_elapsed</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pbp</span> <span class="o">=</span> <span class="n">pbp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">box</span> <span class="o">=</span> <span class="n">box</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">poss</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">initRosters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">getRoster</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">box</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">getRoster</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">box</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">initStarters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">getStarters</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">box</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">getStarters</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">box</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">addCourtTime</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lineup</span><span class="p">:</span>
+            <span class="n">x</span><span class="o">.</span><span class="n">court_time</span> <span class="o">+=</span> <span class="n">time</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lineup</span><span class="p">:</span>
+            <span class="n">x</span><span class="o">.</span><span class="n">court_time</span> <span class="o">+=</span> <span class="n">time</span>
+
+    <span class="k">def</span> <span class="nf">getQuarterStarters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">quarter</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">quarter</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">start_range</span> <span class="o">=</span> <span class="mi">7201</span>
+            <span class="n">end_range</span> <span class="o">=</span> <span class="mi">7493</span>
+        <span class="k">elif</span> <span class="n">quarter</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">start_range</span> <span class="o">=</span> <span class="mi">14410</span>
+            <span class="n">end_range</span> <span class="o">=</span> <span class="mi">14640</span>
+        <span class="k">elif</span> <span class="n">quarter</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">start_range</span> <span class="o">=</span> <span class="mi">21621</span>
+            <span class="n">end_range</span> <span class="o">=</span> <span class="mi">21913</span>          
+        <span class="n">starters_url</span> <span class="o">=</span> <span class="s1">&#39;https://stats.nba.com/stats/boxscoretraditionalv2?EndPeriod=14&amp;GameID=0041800237&amp;RangeType=2&amp;Season=2018-19&amp;SeasonType=Playoffs&amp;StartPeriod=1&amp;StartRange=&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">start_range</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;&amp;EndRange=&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">end_range</span><span class="p">)</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;User-Agent&#39;</span><span class="p">:</span> <span class="s1">&#39;Mozilla/5.0 (Windows NT 10.0; WOW64)&#39;</span><span class="p">,</span> <span class="s1">&#39;x-nba-stats-origin&#39;</span><span class="p">:</span> <span class="s1">&#39;stats&#39;</span><span class="p">,</span> <span class="s1">&#39;x-nba-stats-token&#39;</span><span class="p">:</span> <span class="s1">&#39;true&#39;</span><span class="p">,</span> <span class="s1">&#39;Host&#39;</span><span class="p">:</span><span class="s1">&#39;stats.nba.com&#39;</span><span class="p">,</span> <span class="s1">&#39;Referer&#39;</span><span class="p">:</span><span class="s1">&#39;https://stats.nba.com/game/0021900306/&#39;</span><span class="p">}</span>
+        <span class="n">r</span><span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">starters_url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">timeout</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+        <span class="n">starters</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;resultSets&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;rowSet&#39;</span><span class="p">])</span>
+        <span class="n">col_names</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;resultSets&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;headers&#39;</span><span class="p">]</span>
+        <span class="n">starters</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">col_names</span>
+        <span class="n">starters</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">starters</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">hteam_starters</span> <span class="o">=</span> <span class="n">starters</span><span class="p">[</span><span class="n">starters</span><span class="p">[</span><span class="s1">&#39;team_id&#39;</span><span class="p">]</span><span class="o">==</span><span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">teamid</span><span class="p">]</span>
+        <span class="n">ateam_starters</span> <span class="o">=</span> <span class="n">starters</span><span class="p">[</span><span class="n">starters</span><span class="p">[</span><span class="s1">&#39;team_id&#39;</span><span class="p">]</span><span class="o">==</span><span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">teamid</span><span class="p">]</span>
+        <span class="n">hteam_starters</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">hteam_starters</span><span class="p">[</span><span class="s1">&#39;player_id&#39;</span><span class="p">])</span>
+        <span class="n">ateam_starters</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ateam_starters</span><span class="p">[</span><span class="s1">&#39;player_id&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">quarterSubs</span><span class="p">(</span><span class="n">hteam_starters</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">quarterSubs</span><span class="p">(</span><span class="n">ateam_starters</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">parseGame</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initRosters</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initStarters</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">initLineup</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">initLineup</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pbp</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lineup</span><span class="p">)</span><span class="o">==</span><span class="mi">5</span><span class="p">,</span> <span class="s1">&#39;home lineup not equal to 5&#39;</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lineup</span><span class="p">)</span><span class="o">==</span><span class="mi">5</span><span class="p">,</span> <span class="s1">&#39;away lineup not equal to 5&#39;</span>
+            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;pctimestring&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;12:00&#39;</span> <span class="ow">and</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">prev_row_period</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">getQuarterStarters</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">addCourtTime</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;eventmsgtype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;player1_team_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">teamid</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">-=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">pts</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">-=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">pts</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>      
+            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;eventmsgtype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">8</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;player1_team_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">game</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">teamid</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">Sub</span><span class="p">(</span><span class="n">sub_in</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;player2_id&#39;</span><span class="p">],</span> <span class="n">sub_out</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;player1_id&#39;</span><span class="p">],</span> <span class="n">event</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;eventnum&#39;</span><span class="p">],</span> <span class="n">time</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;time_remaining&#39;</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">Sub</span><span class="p">(</span><span class="n">sub_in</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;player2_id&#39;</span><span class="p">],</span> <span class="n">sub_out</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;player1_id&#39;</span><span class="p">],</span> <span class="n">event</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;eventnum&#39;</span><span class="p">],</span> <span class="n">time</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;time_remaining&#39;</span><span class="p">])</span>   
+            <span class="n">prev_row_period</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="n">por</span> <span class="o">=</span> <span class="n">Team</span><span class="p">(</span><span class="n">gameid</span><span class="o">=</span><span class="s1">&#39;0041800237&#39;</span><span class="p">,</span> <span class="n">teamid</span><span class="o">=</span><span class="mi">1610612757</span><span class="p">)</span>
+<span class="n">por</span><span class="o">.</span><span class="n">getRoster</span><span class="p">(</span><span class="n">box</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">por</span><span class="o">.</span><span class="n">roster</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">playerid</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="err">203090 Maurice Harkless</span>
+<span class="err">202329 Al-Farouq Aminu</span>
+<span class="err">202683 Enes Kanter</span>
+<span class="err">203468 CJ McCollum</span>
+<span class="err">203081 Damian Lillard</span>
+<span class="err">1628380 Zach Collins</span>
+<span class="err">203918 Rodney Hood</span>
+<span class="err">203552 Seth Curry</span>
+<span class="err">202323 Evan Turner</span>
+<span class="err">203086 Meyers Leonard</span>
+<span class="err">1627746 Skal Labissiere</span>
+<span class="err">1627774 Jake Layman</span>
+<span class="err">1629014 Anfernee Simons</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="n">por</span><span class="o">.</span><span class="n">getStarters</span><span class="p">(</span><span class="n">box</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">por</span><span class="o">.</span><span class="n">starters</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">playerid</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">por</span><span class="o">.</span><span class="n">lineup</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">playerid</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="err">203090 Maurice Harkless</span>
+<span class="err">202329 Al-Farouq Aminu</span>
+<span class="err">202683 Enes Kanter</span>
+<span class="err">203468 CJ McCollum</span>
+<span class="err">203081 Damian Lillard</span>
+<span class="err">203090 Maurice Harkless</span>
+<span class="err">202329 Al-Farouq Aminu</span>
+<span class="err">202683 Enes Kanter</span>
+<span class="err">203468 CJ McCollum</span>
+<span class="err">203081 Damian Lillard</span>
+</code></pre></div>
+
+<p>Notice above the starters for Portland is the same as the lineup for Portland because we've only pulled in the box score rosters and the starters from the box score. Trivial, but important to note where I'm getting that data before getting into the play by play. Getting into the real meat and potatoes of how I'm parsing substitutions, here's the function that runs everything within the Game Class: </p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">parseGame</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">initRosters</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">initStarters</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">initLineup</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">initLineup</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pbp</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lineup</span><span class="p">)</span><span class="o">==</span><span class="mi">5</span><span class="p">,</span> <span class="s1">&#39;home lineup not equal to 5&#39;</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lineup</span><span class="p">)</span><span class="o">==</span><span class="mi">5</span><span class="p">,</span> <span class="s1">&#39;away lineup not equal to 5&#39;</span>
+        <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;pctimestring&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;12:00&#39;</span> <span class="ow">and</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">prev_row_period</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">getQuarterStarters</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">addCourtTime</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;play_elapsed_time&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;eventmsgtype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;player1_team_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">teamid</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">-=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">pts</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">diff</span> <span class="o">-=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lu</span><span class="o">.</span><span class="n">pts</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;scoremargin&#39;</span><span class="p">]</span>      
+        <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;eventmsgtype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">8</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;player1_team_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">game</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">teamid</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">Sub</span><span class="p">(</span><span class="n">sub_in</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;player2_id&#39;</span><span class="p">],</span> <span class="n">sub_out</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;player1_id&#39;</span><span class="p">],</span> <span class="n">event</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;eventnum&#39;</span><span class="p">],</span> <span class="n">time</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;time_remaining&#39;</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">Sub</span><span class="p">(</span><span class="n">sub_in</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;player2_id&#39;</span><span class="p">],</span> <span class="n">sub_out</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;player1_id&#39;</span><span class="p">],</span> <span class="n">event</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;eventnum&#39;</span><span class="p">],</span> <span class="n">time</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;time_remaining&#39;</span><span class="p">])</span>   
+        <span class="n">prev_row_period</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;period&#39;</span><span class="p">]</span>
+</code></pre></div>
+
+<p>The first five rows I'm just initializing the game. Then I start to loop through each row of the play by play.</p>
+<div class="highlight"><pre><span></span><code><span class="err">if row[&#39;pctimestring&#39;] == &#39;12:00&#39; and row[&#39;period&#39;] != 1 and row[&#39;period&#39;] != prev_row_period:</span>
+<span class="err">    game.getQuarterStarters(int(row[&#39;period&#39;]))</span>
+</code></pre></div>
+
+<p>NBA's PBP has a separate game event for the end and start of each period, so if the time at the current row is equal to '12:00' then I use the getQuarterStarters helper function in order to get the starters of each quarter from the NBA's box score query feature. </p>
+<div class="highlight"><pre><span></span><code><span class="err">def getQuarterStarters(self, quarter):</span>
+<span class="err">    if quarter == 2:</span>
+<span class="err">        start_range = 7201</span>
+<span class="err">        end_range = 7493</span>
+<span class="err">    elif quarter == 3:</span>
+<span class="err">        start_range = 14410</span>
+<span class="err">        end_range = 14640</span>
+<span class="err">    elif quarter == 4:</span>
+<span class="err">        start_range = 21621</span>
+<span class="err">        end_range = 21913          </span>
+<span class="err">    starters_url = &#39;https://stats.nba.com/stats/boxscoretraditionalv2?EndPeriod=14&amp;GameID=0041800237&amp;RangeType=2&amp;Season=2018-19&amp;SeasonType=Playoffs&amp;StartPeriod=1&amp;StartRange=&#39; + str(start_range) + &#39;&amp;EndRange=&#39; + str(end_range)</span>
+<span class="err">    headers = {&#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; WOW64)&#39;, &#39;x-nba-stats-origin&#39;: &#39;stats&#39;, &#39;x-nba-stats-token&#39;: &#39;true&#39;, &#39;Host&#39;:&#39;stats.nba.com&#39;, &#39;Referer&#39;:&#39;https://stats.nba.com/game/0021900306/&#39;}</span>
+<span class="err">    r= requests.get(starters_url, headers=headers, timeout = 5)</span>
+<span class="err">    data = json.loads(r.text)</span>
+<span class="err">    starters = pd.DataFrame.from_dict(data[&#39;resultSets&#39;][0][&#39;rowSet&#39;])</span>
+<span class="err">    col_names = data[&#39;resultSets&#39;][0][&#39;headers&#39;]</span>
+<span class="err">    starters.columns = col_names</span>
+<span class="err">    starters.columns = starters.columns.str.lower()</span>
+<span class="err">    hteam_starters = starters[starters[&#39;team_id&#39;]==self.hteam.teamid]</span>
+<span class="err">    ateam_starters = starters[starters[&#39;team_id&#39;]==self.ateam.teamid]</span>
+<span class="err">    hteam_starters = list(hteam_starters[&#39;player_id&#39;])</span>
+<span class="err">    ateam_starters = list(ateam_starters[&#39;player_id&#39;])</span>
+<span class="err">    self.hteam.quarterSubs(hteam_starters)</span>
+<span class="err">    self.ateam.quarterSubs(ateam_starters)</span>
+</code></pre></div>
+
+<p>If the starters of the next quarter are different than the lineup that ended the quarter, I run the quarterSubs function from the Team class to replace the correct players:</p>
+<div class="highlight"><pre><span></span><code><span class="err">def quarterSubs(self, lineup):</span>
+<span class="err">    for x in self.lineup[:]:</span>
+<span class="err">        if x.playerid not in lineup:</span>
+<span class="err">            self.lineup.remove(x)</span>
+<span class="err">            x.oncourt = 0</span>
+<span class="err">    for l in lineup:</span>
+<span class="err">        for x in self.roster:</span>
+<span class="err">            if x.playerid == l and x.oncourt == 0:</span>
+<span class="err">                self.lineup.append(x)</span>
+<span class="err">                x.oncourt = 1</span>
+</code></pre></div>
+
+<p>Since no time elapsed between the end of quarters, I don't need to change any lineup or player statistics.</p>
+<div class="highlight"><pre><span></span><code><span class="err">    game.addCourtTime(row[&#39;play_elapsed_time&#39;])</span>
+</code></pre></div>
+
+<p>Just adding playing time for each player from the previous game event to the current.</p>
+<p>The play-by-play from the NBA's API has an 'eventmsgtype' column that has a different key for each event on the court. For our purposes, 1 = made basket and 8 = substitution. Now we can check and see if there was a change in the score so we can update the scoring margin for each lineup:</p>
+<div class="highlight"><pre><span></span><code><span class="err">    if row[&#39;eventmsgtype&#39;] == 1:</span>
+<span class="err">        if row[&#39;player1_team_id&#39;] == game.hteam.teamid:</span>
+<span class="err">            game.hteam.lu.diff += row[&#39;scoremargin&#39;]</span>
+<span class="err">            game.ateam.lu.diff -= row[&#39;scoremargin&#39;]</span>
+<span class="err">            game.hteam.lu.pts += row[&#39;scoremargin&#39;]</span>
+<span class="err">        else:</span>
+<span class="err">            game.ateam.lu.diff += row[&#39;scoremargin&#39;]</span>
+<span class="err">            game.hteam.lu.diff -= row[&#39;scoremargin&#39;]</span>
+<span class="err">            game.ateam.lu.pts += row[&#39;scoremargin&#39;]</span>
+</code></pre></div>
+
+<p>Finally, we get to the real meat and potatoes: parsing the actual substitutions. </p>
+<div class="highlight"><pre><span></span><code>    <span class="k">if</span> <span class="k">row</span><span class="p">[</span><span class="s1">&#39;eventmsgtype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">8</span><span class="p">:</span>
+        <span class="k">if</span> <span class="k">row</span><span class="p">[</span><span class="s1">&#39;player1_team_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">game</span><span class="p">.</span><span class="n">hteam</span><span class="p">.</span><span class="n">teamid</span><span class="p">:</span>
+            <span class="n">game</span><span class="p">.</span><span class="n">hteam</span><span class="p">.</span><span class="n">Sub</span><span class="p">(</span><span class="n">sub_in</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;player2_id&#39;</span><span class="p">],</span> <span class="n">sub_out</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;player1_id&#39;</span><span class="p">],</span> <span class="n">event</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;eventnum&#39;</span><span class="p">],</span> <span class="k">time</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;time_remaining&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">game</span><span class="p">.</span><span class="n">ateam</span><span class="p">.</span><span class="n">Sub</span><span class="p">(</span><span class="n">sub_in</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;player2_id&#39;</span><span class="p">],</span> <span class="n">sub_out</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;player1_id&#39;</span><span class="p">],</span> <span class="n">event</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;eventnum&#39;</span><span class="p">],</span> <span class="k">time</span><span class="o">=</span><span class="k">row</span><span class="p">[</span><span class="s1">&#39;time_remaining&#39;</span><span class="p">])</span>
+
+<span class="n">def</span> <span class="n">Sub</span><span class="p">(</span><span class="k">self</span><span class="p">,</span> <span class="n">sub_in</span><span class="p">,</span> <span class="n">sub_out</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="k">time</span><span class="p">):</span>
+    <span class="k">self</span><span class="p">.</span><span class="n">resetLineup</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="k">time</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="k">in</span> <span class="k">self</span><span class="p">.</span><span class="n">lineup</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">x</span><span class="p">.</span><span class="n">playerid</span> <span class="o">==</span> <span class="n">sub_out</span><span class="p">:</span>
+            <span class="n">print</span><span class="p">(</span><span class="s1">&#39;sub found&#39;</span><span class="p">)</span>
+            <span class="n">x</span><span class="p">.</span><span class="n">oncourt</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">self</span><span class="p">.</span><span class="n">lineup</span><span class="p">.</span><span class="n">remove</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="k">in</span> <span class="k">self</span><span class="p">.</span><span class="n">roster</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">x</span><span class="p">.</span><span class="n">playerid</span> <span class="o">==</span> <span class="n">sub_in</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">.</span><span class="n">oncourt</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">self</span><span class="p">.</span><span class="n">lineup</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Each substitution in the Game class calls the Sub function from our team class. In the PBP data, we see that for each substitution we have columns for the players involved (player_1_player_id, player_2_player_id, etc.).  After resetting the team's lineup because this is the end of that specific lineup's time on the court, we then search through the list of player ids inside of our lineup to find the player getting subbed out. We use the remove function in python in order to remove that player from the list, and then we append the new player's id into our lineup object. </p>
+<p>Here's how this looks in python if we sub in Zach Collins for Enes Kanter:</p>
+<div class="highlight"><pre><span></span><code><span class="n">por</span> <span class="o">=</span> <span class="n">Team</span><span class="p">(</span><span class="n">gameid</span><span class="o">=</span><span class="s1">&#39;0041800237&#39;</span><span class="p">,</span> <span class="n">teamid</span><span class="o">=</span><span class="mi">1610612757</span><span class="p">)</span>
+<span class="n">den</span> <span class="o">=</span> <span class="n">Team</span><span class="p">(</span><span class="n">gameid</span><span class="o">=</span><span class="s1">&#39;0041800237&#39;</span><span class="p">,</span> <span class="n">teamid</span><span class="o">=</span><span class="mi">1610612743</span><span class="p">)</span>
+
+<span class="n">game</span> <span class="o">=</span> <span class="n">Game</span><span class="p">(</span><span class="n">den</span><span class="p">,</span> <span class="n">por</span><span class="p">,</span> <span class="s1">&#39;0041800237&#39;</span><span class="p">,</span><span class="n">pbp</span><span class="p">,</span><span class="n">box</span><span class="p">)</span>
+<span class="n">game</span><span class="o">.</span><span class="n">initRosters</span><span class="p">()</span>
+<span class="n">game</span><span class="o">.</span><span class="n">initStarters</span><span class="p">()</span>
+<span class="n">game</span><span class="o">.</span><span class="n">hteam</span><span class="o">.</span><span class="n">initLineup</span><span class="p">()</span>
+<span class="n">game</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">initLineup</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">game</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lineup</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">playerid</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="err">203090 Maurice Harkless</span>
+<span class="err">202329 Al-Farouq Aminu</span>
+<span class="err">202683 Enes Kanter</span>
+<span class="err">203468 CJ McCollum</span>
+<span class="err">203081 Damian Lillard</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="n">game</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">Sub</span><span class="p">(</span><span class="n">sub_in</span><span class="o">=</span><span class="mi">1628380</span><span class="p">,</span> <span class="n">sub_out</span><span class="o">=</span><span class="mi">202683</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">game</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">lineup</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">playerid</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="err">203090 Maurice Harkless</span>
+<span class="err">202329 Al-Farouq Aminu</span>
+<span class="err">203468 CJ McCollum</span>
+<span class="err">203081 Damian Lillard</span>
+<span class="err">1628380 Zach Collins</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="n">por</span> <span class="o">=</span> <span class="n">Team</span><span class="p">(</span><span class="n">gameid</span><span class="o">=</span><span class="s1">&#39;0041800237&#39;</span><span class="p">,</span> <span class="n">teamid</span><span class="o">=</span><span class="mi">1610612757</span><span class="p">)</span>
+<span class="n">den</span> <span class="o">=</span> <span class="n">Team</span><span class="p">(</span><span class="n">gameid</span><span class="o">=</span><span class="s1">&#39;0041800237&#39;</span><span class="p">,</span> <span class="n">teamid</span><span class="o">=</span><span class="mi">1610612743</span><span class="p">)</span>
+<span class="n">game</span> <span class="o">=</span> <span class="n">Game</span><span class="p">(</span><span class="n">den</span><span class="p">,</span> <span class="n">por</span><span class="p">,</span> <span class="s1">&#39;0041800237&#39;</span><span class="p">,</span><span class="n">pbp</span><span class="p">,</span><span class="n">box</span><span class="p">)</span>
+<span class="n">game</span><span class="o">.</span><span class="n">parseGame</span><span class="p">()</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">game</span><span class="o">.</span><span class="n">ateam</span><span class="o">.</span><span class="n">roster</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">court_time</span><span class="p">)</span>
+</code></pre></div>
+
+<div class="highlight"><pre><span></span><code><span class="err">Maurice Harkless 1008.0</span>
+<span class="err">Al-Farouq Aminu 428.0</span>
+<span class="err">Enes Kanter 2379.0</span>
+<span class="err">CJ McCollum 2717.0</span>
+<span class="err">Damian Lillard 2725.0</span>
+<span class="err">Zach Collins 1397.0</span>
+<span class="err">Rodney Hood 1211.0</span>
+<span class="err">Seth Curry 979.0</span>
+<span class="err">Evan Turner 1152.0</span>
+<span class="err">Meyers Leonard 404.0</span>
+<span class="err">Skal Labissiere 0</span>
+<span class="err">Jake Layman 0</span>
+<span class="err">Anfernee Simons 0</span>
+</code></pre></div>
+
+<p>A quick check of the box score shows that Damian Lillard played 45 minutes and 25 seconds. Our calculated court time within the player class shows that he played -- 2725 seconds or 45 minutes and 25 seconds! </p>
+<p>Hopefully you find this methodology useful. I've tinkered with this problem on-and-off for a while now and most of the solutions I tried (e.g. doing this in Pandas) just weren't very robust and had a lot of problems.</p>
+  </div>
+  <div class="tag-cloud">
+    <p>
+    </p>
+  </div>
+
+
+
+
+
+</article>
+
+    <footer>
+<p>&copy;  </p>
+<p>
+Built with <a href="http://getpelican.com" target="_blank">Pelican</a> using <a href="http://bit.ly/flex-pelican" target="_blank">Flex</a> theme
+</p>    </footer>
+  </main>
+
+
+
+
+<script type="application/ld+json">
+{
+  "@context" : "http://schema.org",
+  "@type" : "Blog",
+  "name": " Quip Trippin ",
+  "url" : "http://jungwirb.io",
+  "image": "siteImages/gandalf.png",
+  "description": ""
+}
+</script>
+
+
+</body>
+</html>
