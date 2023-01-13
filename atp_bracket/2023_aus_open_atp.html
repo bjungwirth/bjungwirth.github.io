@@ -1,49 +1,56 @@
 <html>
 <head>
-  <meta charset="utf-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="HandheldFriendly" content="True" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="robots" content="" />
+<style>
+path {
+  stroke-width: 0.15;
+  fill: white;
+  stroke: #666;
+}
+</style>
+<meta charset="utf-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="HandheldFriendly" content="True" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="" />
 
-  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,700;1,400&family=Source+Sans+Pro:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,700;1,400&family=Source+Sans+Pro:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/stylesheet/style.min.css">
-
-
-    <link id="pygments-light-theme" rel="stylesheet" type="text/css"
-          href="http://jungwirb.io/theme/pygments/monokai.min.css">
-
-
-  <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/fontawesome.css">
-  <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/brands.css">
-  <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/solid.css">
+  <link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/stylesheet/style.min.css">
 
 
-    <link href="http://jungwirb.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Quip Trippin Atom">
+  <link id="pygments-light-theme" rel="stylesheet" type="text/css"
+        href="http://jungwirb.io/theme/pygments/monokai.min.css">
+
+
+<link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/fontawesome.css">
+<link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/brands.css">
+<link rel="stylesheet" type="text/css" href="http://jungwirb.io/theme/font-awesome/css/solid.css">
+
+
+  <link href="http://jungwirb.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Quip Trippin Atom">
 
 
 
 <!-- Google Analytics -->
 <script type="text/javascript">
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
 
-  ga('create', 'G-7H46PK57GJ', 'auto');
-  ga('send', 'pageview');
+ga('create', 'G-7H46PK57GJ', 'auto');
+ga('send', 'pageview');
 </script>
 <!-- End Google Analytics -->
-    <!-- Chrome, Firefox OS and Opera -->
-    <meta name="theme-color" content="#333">
-    <!-- Windows Phone -->
-    <meta name="msapplication-navbutton-color" content="#333">
-    <!-- iOS Safari -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <!-- Microsoft EDGE -->
-    <meta name="msapplication-TileColor" content="#333">
+  <!-- Chrome, Firefox OS and Opera -->
+  <meta name="theme-color" content="#333">
+  <!-- Windows Phone -->
+  <meta name="msapplication-navbutton-color" content="#333">
+  <!-- iOS Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Microsoft EDGE -->
+  <meta name="msapplication-TileColor" content="#333">
 
 <meta name="author" content="Blaine" />
 <meta name="description" content="Parsing substitutions in basketball play-by-play data is a problem that has eluded me for a while. It&#39;s massively important when considering lineup-contextual events or statistics like plus/minus or for parsing rotation data. The below is the approach I came up with to parse this data out and get an …" />
